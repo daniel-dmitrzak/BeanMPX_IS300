@@ -1,7 +1,7 @@
 #include <BeanMPX.h>
 #include <EMUcan.h>
 
-EMUcan emucan;
+EMUcan emucan = EMUcan(0x600, 10);
 BeanMPX bean;
 
 uint32_t timer = 0;
@@ -35,13 +35,12 @@ void setup() {
   // Frame to be send:
   canMsg1.can_id  = 0x500;
   canMsg1.can_dlc = 8;
-  canMsg1.data[0] = 0x00;
-  canMsg1.data[1] = 0x00;
-  canMsg1.data[2] = 0x00;
+  canMsg1.data[0] = 0xFF;
+  canMsg1.data[1] = 0xFF;
+  canMsg1.data[2] = 0xFF;
 
   Serial.begin(115200);
   Serial.println("BeanMPX");
-  pinMode(10, INPUT_PULLUP);
   tone(2, 150);
 
 }
@@ -112,25 +111,25 @@ void readBean() {
     }
   }
 }
-uint8_t beanMessageToSend = 1;
+int beanMessageToSend = 0;
 
 void sendBean()
 {
   if (!bean.isBusy()) {
-      switch(beanMessageToSend)
+      if(beanMessageToSend == 1)
       {
-        case 1:
           int convertedRpm = emucan.emu_data.RPM * 5.12; 
           beanMsg_Tacho[2] = convertedRpm & 0xFF00 >> 8;
           beanMsg_Tacho[3] = convertedRpm & 0xFF;
-          bean.sendMsg(beanMsg_Tacho, sizeof(beanMsg_Tacho)); break;
-        case 2:
-          beanMsg_EngineTemp[2] = emucan.emu_data.CLT + 48;
-          bean.sendMsg(beanMsg_EngineTemp, sizeof(beanMsg_EngineTemp)); break;
-        default:
-          beanMessageToSend = 0;
-          break;
+          bean.sendMsg(beanMsg_Tacho, sizeof(beanMsg_Tacho)); 
       }
+      else if(beanMessageToSend == 2)
+      {
+          beanMsg_EngineTemp[2] = emucan.emu_data.CLT + 48;
+          bean.sendMsg(beanMsg_EngineTemp, sizeof(beanMsg_EngineTemp)); 
+      }
+      else
+        beanMessageToSend = 0;
       beanMessageToSend++;
     }
 }
@@ -151,23 +150,23 @@ void loop() {
 
   readBean();
 
-  plotDataOnSerial();
-  
-//  if (timer < millis()){
-//    sendBean();
-//    timer = millis() + 1000;
-//  }
+  //plotDataOnSerial();
+
+  if (timer < millis()){
+    sendBean();
+    timer = millis() + 100;
+  }
 
   // only send every second:
-//  unsigned long currentMillis = millis();
-//  if (currentMillis - previousMillis >= interval) {
-//    previousMillis = currentMillis;
-//
-//    canMsg1.data[0] = myLexusData.fuelLevel;
-//    canMsg1.data[1] = myLexusData.vehicleSpeed;
-//    canMsg1.data[2] = myLexusData.acOn ? 0x255 : 0x0;
-//
-//    //Sends the frame;
-//    emucan.sendFrame(&canMsg1);
-//  }
+  unsigned long currentMillis = millis();
+  if (currentMillis - previousMillis >= interval) {
+    previousMillis = currentMillis;
+
+    canMsg1.data[0] = myLexusData.fuelLevel;
+    canMsg1.data[1] = myLexusData.vehicleSpeed / 2;
+    canMsg1.data[2] = myLexusData.acOn ? 0x255 : 0x0;
+
+    //Sends the frame;
+    emucan.sendFrame(&canMsg1);
+  }
 }
