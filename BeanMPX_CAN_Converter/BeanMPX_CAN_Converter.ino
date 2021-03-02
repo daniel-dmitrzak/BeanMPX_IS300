@@ -13,8 +13,6 @@ uint8_t beanMsg_Tacho[] = {0xFE, 0x26, 0x1A, 0x4C, 0xC2};
 
 // CAN stuff
 struct can_frame canMsg1;
-unsigned long previousMillis = 0;
-const long interval = 100;
 
 // Timers 
 uint32_t beanTimer = 0;
@@ -81,7 +79,7 @@ void readBean() {
     
     switch ( beanBuffer[3] )
     {
-      case 0x26: // Tacho / 5.12
+      case 0x26: // Tacho 
         myLexusData.rpm = (beanBuffer[4] << 8 | beanBuffer[5]) / 5.12;
         break;
       case 0x24: // Speedo
@@ -90,13 +88,13 @@ void readBean() {
       case 0x2C: // Engine Temp
         myLexusData.engineTemp = beanBuffer[4] / 2 ;
         break;
-      case 0xCD: // Outside Temp
+      case 0xCD: // Outside Temp 
         myLexusData.outsideTemp = beanBuffer[4] - 48;
         break;
-      case 0xD7:
+      case 0xD7: // Air conditioning flags
         myLexusData.acOn = ((beanBuffer[4] >> 6) & 0x01) ? true : false;
         break;
-      case 0xA4:
+      case 0xA4: // Fuel level 
         myLexusData.fuelLevel = beanBuffer[4];
       default:
         break;
