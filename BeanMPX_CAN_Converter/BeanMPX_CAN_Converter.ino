@@ -1,22 +1,13 @@
 #include <BeanMPX.h>
 #include <EMUcan.h>
 
+#define BEAN_PERIOD 100
+#define CAN_PERIOD 100
+
 EMUcan emucan = EMUcan(0x600, 10);
 BeanMPX bean;
 
-uint32_t timer = 0;
-
-// Messages           {DID,  MID,  DAT0, DAT1, DAT2}
-uint8_t fuel[] =      {0x62, 0xA4, 0x3C}; // Fuel D0 153-40
-uint8_t gear[] =      {0x62, 0x40, 0x08, 0x10}; // P,R,N,D,M,3,2,L D0 11111111 (128, 64, 32, 16, 8, 4, 2, 1); Manual mode: 5,4,3,2,L D1 ---11111 (16, 8, 4, 2, 1)
-uint8_t ect[] =       {0x62, 0xD2, 0x08, 0x10}; // ECT PWR, SNOW, CRUISE D0 --11--1- (32,16,2); CRUISE-FLASH, ECT PWR-FLASH D1 -11----- (64,32);
-uint8_t seatBelt[] =  {0x62, 0xDF, 0x10, 0x80}; // DOOR D0 ---1---- (16);  SEAT BELT D1 1------- (128)
-
-uint8_t speedo[] = {0xFE, 0x24, 0x0, 0x67};
-uint8_t outsideTemp[] = {0xFE, 0xCD, 0x38};
-uint8_t acFlags[] = { 0xFE, 0xD7, 0x80};
-
-
+// Bean Messages           {DID,  MID,  DAT0, DAT1, DAT2}
 uint8_t beanMsg_EngineTemp[]  =  {0x62, 0x2C, 0x62}; // Engine Temp D0 90-255
 uint8_t beanMsg_Tacho[] = {0xFE, 0x26, 0x1A, 0x4C, 0xC2};
 
@@ -24,7 +15,29 @@ uint8_t beanMsg_Tacho[] = {0xFE, 0x26, 0x1A, 0x4C, 0xC2};
 struct can_frame canMsg1;
 unsigned long previousMillis = 0;
 const long interval = 100;
-byte countUp = 0;
+
+// Timers 
+uint32_t beanTimer = 0;
+uint32_t canTimer = 0;
+
+// Struct for holding BEAN data
+struct lexusData {
+  uint8_t vehicleSpeed = 0;
+  uint8_t fuelLevel = 0;
+  float rpm = 0;
+  float engineTemp = 0;
+  float outsideTemp = 0;
+  bool acOn = false;
+};
+lexusData myLexusData;
+
+// Functions 
+void readBean();
+void sendBean();
+void plotBeanData();
+void plotEmuData();
+
+bool enableSniffer = false;
 
 void setup() {
   //Setup Bean
@@ -42,50 +55,29 @@ void setup() {
   Serial.begin(115200);
   Serial.println("BeanMPX");
   tone(2, 150);
-
 }
 
-struct lexusData {
-  uint8_t vehicleSpeed = 0;
-  uint8_t fuelLevel = 0;
-  float rpm = 0;
-  float engineTemp = 0;
-  float outsideTemp = 0;
-  bool acOn = false;
-} ;
-
-
-lexusData myLexusData;
-uint8_t beanBuffer[24] = {0x01, 0x58,  0xFE, 0x2C, 0x62};
-
-
-void readBean();
-void sendBean();
-void plotDataOnSerial();
-bool enableSniffer = false;
-
+uint8_t beanBuffer[24];
 void readBean() {
   uint8_t ptr = 0;
 
-  if (bean.available()) {
-    ptr = 0;
+  if (bean.available()) {    
+    while (bean.available()) {
+      beanBuffer[ptr] = bean.read();
+      ptr++;
+    }
+    
     if(enableSniffer)
     {
       Serial.print(bean.msgType()); 
       Serial.print(" ");    
-    }
-    while (bean.available()) {
-      beanBuffer[ptr] = bean.read();
-      if(enableSniffer)
+      for(int i = 0; i < ptr; i++)
       {
-        Serial.print(beanBuffer[ptr], HEX); 
+        Serial.print(beanBuffer[i], HEX); 
         Serial.print(" "); 
       }
-      
-      ptr++;
+      Serial.print("\n");
     }
-    if(enableSniffer) Serial.print("\n");
-    beanBuffer[ptr] == 0x00;
     
     switch ( beanBuffer[3] )
     {
@@ -111,14 +103,14 @@ void readBean() {
     }
   }
 }
-int beanMessageToSend = 0;
 
+int beanMessageToSend = 1;
 void sendBean()
 {
+  int convertedRpm = emucan.emu_data.RPM * 5.12;
   if (!bean.isBusy()) {
       if(beanMessageToSend == 1)
       {
-          int convertedRpm = emucan.emu_data.RPM * 5.12; 
           beanMsg_Tacho[2] = convertedRpm & 0xFF00 >> 8;
           beanMsg_Tacho[3] = convertedRpm & 0xFF;
           bean.sendMsg(beanMsg_Tacho, sizeof(beanMsg_Tacho)); 
@@ -134,7 +126,7 @@ void sendBean()
     }
 }
 
-void plotDataOnSerial()
+void plotBeanData()
 {
   Serial.print("rpm:"); Serial.print(myLexusData.rpm, DEC); Serial.print(",");
   Serial.print("vss:"); Serial.print(myLexusData.vehicleSpeed, DEC); Serial.print(",");
@@ -145,28 +137,29 @@ void plotDataOnSerial()
   Serial.println("");
 }
 
+void plotEmuData()
+{
+  // Empty for now
+}
+
 void loop() {
   emucan.checkEMUcan();
 
   readBean();
 
-  //plotDataOnSerial();
+  plotBeanData();
 
-  if (timer < millis()){
+  if (beanTimer < millis()){
     sendBean();
-    timer = millis() + 100;
+    beanTimer = millis() + BEAN_PERIOD;
   }
 
-  // only send every second:
-  unsigned long currentMillis = millis();
-  if (currentMillis - previousMillis >= interval) {
-    previousMillis = currentMillis;
-
+  if (canTimer < millis()) {
     canMsg1.data[0] = myLexusData.fuelLevel;
     canMsg1.data[1] = myLexusData.vehicleSpeed / 2;
     canMsg1.data[2] = myLexusData.acOn ? 0x255 : 0x0;
-
     //Sends the frame;
     emucan.sendFrame(&canMsg1);
+    canTimer = millis() + CAN_PERIOD;
   }
 }
