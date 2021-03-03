@@ -16,9 +16,7 @@ uint8_t beanMsgTx[16];
 
 // Functions 
 int readBean();
-void sendBean();
 int readCAN();
-void sendCAN();
 
 // Flags
 bool beanWaitingForSend = false;
@@ -31,7 +29,7 @@ void setup() {
 
   //Setup CAN
   mcp2515.reset();
-  mcp2515.setBitrate(CAN_125KBPS);
+  mcp2515.setBitrate(CAN_500KBPS);
   mcp2515.setNormalMode();
 
   Serial.begin(115200);
@@ -49,13 +47,6 @@ int readBean() {
   }
   
  return ptr;
-}
-
-void sendBean(unsigned short beanTxSize)
-{
-  if (!bean.isBusy()) {
-          bean.sendMsg(beanMsgTx, beanTxSize); 
-  }
 }
 
 int readCAN()
