@@ -29,7 +29,7 @@ void setup() {
 
   //Setup CAN
   mcp2515.reset();
-  mcp2515.setBitrate(CAN_500KBPS);
+  mcp2515.setBitrate(CAN_500KBPS, MCP_8MHZ);
   mcp2515.setNormalMode();
 
   Serial.begin(115200);
@@ -77,76 +77,78 @@ void loop() {
       Serial.println("");
     }
 
-    if(beanMsgRx[1] & 0x0F <= 8)
+    if((beanMsgRx[1] & 0x0F) <= 0x08)
     {
       // Repack bean frame into can frame
-      canMsgTx.can_id = CANID_FILTER | beanMsgRx[2] << 8 | beanMsgRx[3];
-      canMsgTx.can_dlc = beanMsgRx[1] & 0x0F;
-      for(int i = 0; i < canMsgTx.can_dlc; i++)
+      canMsgTx.can_id = 0x81230000 | (beanMsgRx[2] << 8)&0xFF00 | beanMsgRx[3]&0xFF;
+      canMsgTx.can_dlc = (beanMsgRx[1] & 0x0F) - 2;
+      for(int i = 0; i < canMsgTx.can_dlc; i++){
         canMsgTx.data[i] = beanMsgRx[4 + i];
+      }
       CANWaitingForSend = true;
     }
   }
-
+  
   if(CANWaitingForSend)
   {
     if(debugEnabled)
     {
       Serial.print("CAN TX: ");
       Serial.print(canMsgTx.can_id, HEX); Serial.print(" ");
-      Serial.print(canMsgTx.can_dlc, DEC); Serial.print(" ");
       for(int i = 0; i < canMsgTx.can_dlc; i++)
       {
         Serial.print(canMsgTx.data[i], HEX);
         Serial.print(" ");
       }
+      Serial.print("DLC: ");
+      Serial.print(canMsgTx.can_dlc, DEC); Serial.print(" ");
       Serial.println("");
     }
     //sendCan();
     mcp2515.sendMessage(&canMsgTx);
     CANWaitingForSend = false;
   }
-  
-  if(readCAN())
-  {
-    if(debugEnabled)
-    {
-      Serial.print("CAN RX: ");
-      Serial.print(canMsgRx.can_id, HEX); Serial.print(" ");
-      Serial.print(canMsgRx.can_dlc, DEC); Serial.print(" ");
-      for(int i = 0; i < canMsgRx.can_dlc; i++)
-      {
-        Serial.print(canMsgRx.data[i], HEX);
-        Serial.print(" ");
-      }
-      Serial.println("");
-    }
-    // Repack can frame into bean frame 
-    beanMsgTx[0] = (canMsgRx.can_id & 0xFF00) >> 8; // DST ID
-    beanMsgTx[1] = (canMsgRx.can_id & 0xFF); // MSG ID 
-    for(int i = 0; i < canMsgRx.can_dlc; i++)
-    {
-      beanMsgTx[2 + i] = canMsgRx.data[i]; // Data 0
-    }
-    beanTxSize = canMsgRx.can_dlc + 2; 
-    beanWaitingForSend = true; 
-  }
-
-  if(beanWaitingForSend)
-  {
-    if(debugEnabled)
-    {
-      Serial.print("BEAN TX: ");
-      for(int i = 0; i < ((beanMsgTx[1] & 0x0F) + 3); i++)
-      {
-        Serial.print(beanMsgTx[i], HEX); Serial.print(" ");
-      }
-      Serial.println("");
-    }
-    //sendBean();
-    if (!bean.isBusy()) {
-      bean.sendMsg(beanMsgTx, beanTxSize); 
-    }
-    beanWaitingForSend = false;
-  }
+//  
+//  if(readCAN())
+//  {
+//    if(debugEnabled)
+//    {
+//      Serial.print("CAN RX: ");
+//      Serial.print(canMsgRx.can_id, HEX); Serial.print(" ");
+//      Serial.print(canMsgRx.can_dlc, DEC); Serial.print(" ");
+//      for(int i = 0; i < canMsgRx.can_dlc; i++)
+//      {
+//        Serial.print(canMsgRx.data[i], HEX);
+//        Serial.print(" ");
+//      }
+//      Serial.println("");
+//    }
+//    // Repack can frame into bean frame 
+//    beanMsgTx[0] = (canMsgRx.can_id & 0xFF00) >> 8; // DST ID
+//    beanMsgTx[1] = (canMsgRx.can_id & 0xFF); // MSG ID 
+//    for(int i = 0; i < canMsgRx.can_dlc; i++)
+//    {
+//      beanMsgTx[2 + i] = canMsgRx.data[i]; // Data 0
+//    }
+//    beanTxSize = canMsgRx.can_dlc + 2; 
+//    beanWaitingForSend = true; 
+//  }
+//
+//  if(beanWaitingForSend)
+//  {
+//    if(debugEnabled)
+//    {
+//      Serial.print("BEAN TX: ");
+//      for(int i = 0; i < ((beanMsgTx[1] & 0x0F) + 3); i++)
+//      {
+//        Serial.print(beanMsgTx[i], HEX); Serial.print(" ");
+//      }
+//      Serial.println("");
+//    }
+//    //sendBean();
+//    if (!bean.isBusy()) {
+//      bean.sendMsg(beanMsgTx, beanTxSize); 
+//    }
+//    beanWaitingForSend = false;
+//  }
 }

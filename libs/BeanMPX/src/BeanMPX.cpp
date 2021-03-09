@@ -77,10 +77,10 @@ void BeanMPX::storeReceivedBit(uint8_t rx_pin_val, bool no_stuffing_bit = false)
 }
 
 void BeanMPX::storeReceivedByte() {
-  _receive_buffer[_buffer_index] = d;
-  d = 0;
-  i = 0x80;
-  _buffer_index++;
+  _receive_buffer[_buffer_index] = d; // Let's store the current byte data in receive buffer
+  d = 0; // We reset the value of current byte to 0 
+  i = 0x80; // We rewind the current bit position to 1000 0000. 
+  _buffer_index++; // We advance the buffer pointer
 }
 
 
@@ -96,7 +96,7 @@ void BeanMPX::receive() {
   rx_pin_val = (PINB & BeanMPX::_receiveBitMask);
 
   switch (msg_stage) {
-  case 0:
+  case 0: // Start of frame 
     storeReceivedBit(rx_pin_val, true);
 
     if (!i) {
@@ -108,10 +108,10 @@ void BeanMPX::receive() {
   case 1:
     storeReceivedBit(rx_pin_val);
 
-    if (!i) {
-      msg_length = d & 0x0f;
-      if (msg_length > 13) {
-        msg_stage = 0;
+    if (!i) { // !i mean that we reached the end of the given byte and need to store it. 
+      msg_length = d & 0x0f; // Getting the length of the data from the frame itself
+      if (msg_length > 13) { // We received something longer than expected frame size
+        msg_stage = 0; // So we reset everything
         is_listining = false;
         TIMSK1 = 0;
         _buffer_index = 0;
@@ -168,17 +168,17 @@ void BeanMPX::receive() {
   case 5:
     storeReceivedBit(rx_pin_val, true);
 
-    if (!i || (i & 0x1f) > 0) {
+    if (!i || (i & 0x1f) > 0) { // We're done. Reset everything 
       storeReceivedByte();
       TIMSK1 = 0;
       msg_stage = 0;
       is_listining = false;
 
-	  memcpy(msg, _receive_buffer, sizeof _receive_buffer);
-	  msg_index = 0;
-	  msg_len = _buffer_index;	  
-	  _buffer_index = 0;
-	  msg_type = 'R';
+      memcpy(msg, _receive_buffer, sizeof _receive_buffer); // Store our result 
+      msg_index = 0;
+      msg_len = _buffer_index;	  
+      _buffer_index = 0;
+      msg_type = 'R';
 	  
       break;
     }
