@@ -2,8 +2,10 @@
 #include <SPI.h>
 #include <mcp2515.h>
 
-#define CANID_FILTER 0x18200000
-#define USE_11BIT_ID // For use with cansniffer, which doesn't support 29 bit IDs. We're loosing information about DST-ID but still retain MSG-ID
+#define CANID_EXTENDED 0x80000000
+#define CANID_BASE_29BIT 0x11230000
+#define CANID_BASE_11BIT 0x500
+//#define USE_11BIT_ID // For use with cansniffer, which doesn't support 29 bit IDs. We're loosing information about DST-ID but still retain MSG-ID
 
 
 MCP2515 mcp2515(10);
@@ -54,7 +56,11 @@ int readCAN()
 {
   struct can_frame canTempMsg;
   if (mcp2515.readMessage(&canTempMsg) == MCP2515::ERROR_OK) {   
-    if(canTempMsg.can_id & 0xFFF00000 == CANID_FILTER){
+    #ifdef USE_11BIT_ID
+    if(canTempMsg.can_id & 0xF00 == CANID_BASE_11BIT){
+    #else
+    if(canTempMsg.can_id & 0x9FFF0000 == CANID_BASE_29BIT){
+    #endif
       canMsgRx = canTempMsg;
       return canMsgRx.can_dlc;
     }
@@ -82,9 +88,9 @@ void loop() {
     {
       // Repack bean frame into can frame
       #ifdef USE_11BIT_ID
-      canMsgTx.can_id = 0x500 | beanMsgRx[3]&0xFF;
+      canMsgTx.can_id = CANID_BASE_11BIT | beanMsgRx[3]&0xFF;
       #else
-      canMsgTx.can_id = 0x81230000 | (beanMsgRx[2] << 8)&0xFF00 | beanMsgRx[3]&0xFF;
+      canMsgTx.can_id = CANID_EXTENDED | CANID_BASE_29BIT | (beanMsgRx[2] << 8)&0xFF00 | beanMsgRx[3]&0xFF;
       #endif
       canMsgTx.can_dlc = (beanMsgRx[1] & 0x0F) - 2;
       for(int i = 0; i < canMsgTx.can_dlc; i++){
@@ -109,53 +115,60 @@ void loop() {
       Serial.print(canMsgTx.can_dlc, DEC); Serial.print(" ");
       Serial.println("");
     }
-    //sendCan();
+    
     mcp2515.sendMessage(&canMsgTx);
     CANWaitingForSend = false;
   }
-//  
-//  if(readCAN())
-//  {
-//    if(debugEnabled)
-//    {
-//      Serial.print("CAN RX: ");
-//      Serial.print(canMsgRx.can_id, HEX); Serial.print(" ");
-//      Serial.print(canMsgRx.can_dlc, DEC); Serial.print(" ");
-//      for(int i = 0; i < canMsgRx.can_dlc; i++)
-//      {
-//        Serial.print(canMsgRx.data[i], HEX);
-//        Serial.print(" ");
-//      }
-//      Serial.println("");
-//    }
-//    // Repack can frame into bean frame 
-//    beanMsgTx[0] = (canMsgRx.can_id & 0xFF00) >> 8; // DST ID
-//    beanMsgTx[1] = (canMsgRx.can_id & 0xFF); // MSG ID 
-//    for(int i = 0; i < canMsgRx.can_dlc; i++)
-//    {
-//      beanMsgTx[2 + i] = canMsgRx.data[i]; // Data 0
-//    }
-//    beanTxSize = canMsgRx.can_dlc + 2; 
-//    beanWaitingForSend = true; 
-//  }
-//
-//  if(beanWaitingForSend)
-//  {
-//    if(debugEnabled)
-//    {
-//      Serial.print("BEAN TX: ");
-//      for(int i = 0; i < ((beanMsgTx[1] & 0x0F) + 3); i++)
-//      {
-//        Serial.print(beanMsgTx[i], HEX); Serial.print(" ");
-//      }
-//      Serial.println("");
-//    }
-//    //sendBean();
-//    if (!bean.isBusy()) {
-//      bean.sendMsg(beanMsgTx, beanTxSize); 
-//    }
-//    beanWaitingForSend = false;
-//  }
+  
+  if(readCAN())
+  {
+    if(debugEnabled)
+    {
+      Serial.print("CAN RX: ");
+      Serial.print(canMsgRx.can_id, HEX); Serial.print(" ");
+      Serial.print(canMsgRx.can_dlc, DEC); Serial.print(" ");
+      for(int i = 0; i < canMsgRx.can_dlc; i++)
+      {
+        Serial.print(canMsgRx.data[i], HEX);
+        Serial.print(" ");
+      }
+      Serial.println("");
+    }
+    
+    // Repack can frame into bean frame 
+    #ifdef USE_11BIT_ID
+    beanMsgTx[0] = 0xFE; // DST ID
+    beanMsgTx[1] = (canMsgRx.can_id & 0xFF); // MSG ID 
+    #else
+    beanMsgTx[0] = (canMsgRx.can_id & 0xFF00) >> 8; // DST ID
+    beanMsgTx[1] = (canMsgRx.can_id & 0xFF); // MSG ID 
+    #endif
+    
+    for(int i = 0; i < canMsgRx.can_dlc; i++)
+    {
+      beanMsgTx[2 + i] = canMsgRx.data[i]; // Data 0
+    }
+    beanTxSize = canMsgRx.can_dlc + 2; 
+    beanWaitingForSend = true; 
+  }
+
+  if(beanWaitingForSend)
+  {
+    if(debugEnabled)
+    {
+      Serial.print("BEAN TX: ");
+      for(int i = 0; i < ((beanMsgTx[1] & 0x0F) + 3); i++)
+      {
+        Serial.print(beanMsgTx[i], HEX); Serial.print(" ");
+      }
+      Serial.println("");
+    }
+    
+    if (!bean.isBusy()) {
+      bean.sendMsg(beanMsgTx, beanTxSize); 
+    }
+    beanWaitingForSend = false;
+  }
 }
 
 
