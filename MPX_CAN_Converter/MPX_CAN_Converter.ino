@@ -59,7 +59,7 @@ int readCAN()
     #ifdef USE_11BIT_ID
     if(canTempMsg.can_id & 0xF00 == CANID_BASE_11BIT){
     #else
-    if(canTempMsg.can_id & 0x9FFF0000 == CANID_BASE_29BIT){
+    if(canTempMsg.can_id & 0x9FFF0000 == (CANID_BASE_29BIT | CANID_EXTENDED)){
     #endif
       canMsgRx = canTempMsg;
       return canMsgRx.can_dlc;
