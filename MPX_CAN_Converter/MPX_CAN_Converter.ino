@@ -3,6 +3,7 @@
 #include <mcp2515.h>
 
 #define CANID_FILTER 0x18200000
+#define USE_11BIT_ID // For use with cansniffer, which doesn't support 29 bit IDs. We're loosing information about DST-ID but still retain MSG-ID
 
 
 MCP2515 mcp2515(10);
@@ -32,7 +33,7 @@ void setup() {
   mcp2515.setBitrate(CAN_500KBPS, MCP_8MHZ);
   mcp2515.setNormalMode();
 
-  Serial.begin(115200);
+  Serial.begin(115200); 
   Serial.println("BeanMPX");
 }
 
@@ -80,7 +81,11 @@ void loop() {
     if((beanMsgRx[1] & 0x0F) <= 0x08)
     {
       // Repack bean frame into can frame
+      #ifdef USE_11BIT_ID
+      canMsgTx.can_id = 0x500 | beanMsgRx[3]&0xFF;
+      #else
       canMsgTx.can_id = 0x81230000 | (beanMsgRx[2] << 8)&0xFF00 | beanMsgRx[3]&0xFF;
+      #endif
       canMsgTx.can_dlc = (beanMsgRx[1] & 0x0F) - 2;
       for(int i = 0; i < canMsgTx.can_dlc; i++){
         canMsgTx.data[i] = beanMsgRx[4 + i];
@@ -152,3 +157,19 @@ void loop() {
 //    beanWaitingForSend = false;
 //  }
 }
+
+
+
+
+
+
+
+
+
+//    /\_____/\
+//   /  o   o  \
+//  ( ==  ^  == )
+//   )         ( 
+//  (           )
+// ( (  )   (  ) )
+//(__(__)___(__)__)
