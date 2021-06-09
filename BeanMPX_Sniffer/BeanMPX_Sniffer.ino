@@ -9,6 +9,9 @@ void setup() {
   
   Serial.begin(115200);
   Serial.println("BeanMPX");
+
+  pinMode(8, INPUT);
+  pinMode(9, OUTPUT);
 }
 
 void loop() {  
@@ -21,5 +24,4 @@ void loop() {
     }
     Serial.print("\n");    
   }
-  
 }
