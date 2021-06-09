@@ -11,6 +11,11 @@
 #define RX 8
 #define TX 9
 #define BUFFER_SIZE 18
+#define CALLIB_FULL 1800
+#define CALLIB_HALF 900
+#define _DEBUG
+
+// Original callibration values were 1660 and 830 
 
 class BeanMPX {
 	private: 
@@ -44,7 +49,7 @@ class BeanMPX {
 		volatile uint8_t _tx_buffer_len = 0;
 		volatile uint8_t tx_s0 = 0, tx_s1 = 0; // ts0 and ts1 - Consecutive bit counters for Stuffing Bits
 		volatile uint16_t j = 0x80;
-		volatile uint8_t tx_retry = 2;
+		volatile uint8_t tx_retry = 0;
 
 		// Acknowledge vars
 		uint8_t acknowledge_did[10];

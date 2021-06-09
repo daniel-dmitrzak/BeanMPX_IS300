@@ -77,10 +77,10 @@ void BeanMPX::storeReceivedBit(uint8_t rx_pin_val, bool no_stuffing_bit = false)
 }
 
 void BeanMPX::storeReceivedByte() {
-  _receive_buffer[_buffer_index] = d; // Let's store the current byte data in receive buffer
-  d = 0; // We reset the value of current byte to 0 
-  i = 0x80; // We rewind the current bit position to 1000 0000. 
-  _buffer_index++; // We advance the buffer pointer
+  _receive_buffer[_buffer_index] = d;
+  d = 0;
+  i = 0x80;
+  _buffer_index++;
 }
 
 
@@ -96,7 +96,7 @@ void BeanMPX::receive() {
   rx_pin_val = (PINB & BeanMPX::_receiveBitMask);
 
   switch (msg_stage) {
-  case 0: // Start of frame 
+  case 0:
     storeReceivedBit(rx_pin_val, true);
 
     if (!i) {
@@ -108,10 +108,10 @@ void BeanMPX::receive() {
   case 1:
     storeReceivedBit(rx_pin_val);
 
-    if (!i) { // !i mean that we reached the end of the given byte and need to store it. 
-      msg_length = d & 0x0f; // Getting the length of the data from the frame itself
-      if (msg_length > 13) { // We received something longer than expected frame size
-        msg_stage = 0; // So we reset everything
+    if (!i) {
+      msg_length = d & 0x0f;
+      if (msg_length > 13) {
+        msg_stage = 0;
         is_listining = false;
         TIMSK1 = 0;
         _buffer_index = 0;
@@ -168,17 +168,17 @@ void BeanMPX::receive() {
   case 5:
     storeReceivedBit(rx_pin_val, true);
 
-    if (!i || (i & 0x1f) > 0) { // We're done. Reset everything 
+    if (!i || (i & 0x1f) > 0) {
       storeReceivedByte();
       TIMSK1 = 0;
       msg_stage = 0;
       is_listining = false;
 
-      memcpy(msg, _receive_buffer, sizeof _receive_buffer); // Store our result 
-      msg_index = 0;
-      msg_len = _buffer_index;	  
-      _buffer_index = 0;
-      msg_type = 'R';
+	  memcpy(msg, _receive_buffer, sizeof _receive_buffer);
+	  msg_index = 0;
+	  msg_len = _buffer_index;	  
+	  _buffer_index = 0;
+	  msg_type = 'R';
 	  
       break;
     }
@@ -214,7 +214,7 @@ void BeanMPX::receiveAcknowledge() {
       tx_retry--;
     } else {
       _tx_buffer_len = 0;
-      tx_retry = 2;
+      tx_retry = 0;
     }
     is_receive_ack = false;
     rsp = 0;    
@@ -305,16 +305,17 @@ void BeanMPX::transmitAcknowledge() {
 //  sync pulse
 //
 void BeanMPX::syncPulse() {
+  if(is_transmitting) return;
+  TCNT1 = CALLIB_HALF;//830;
   uint8_t rx_pin_val;
   rx_pin_val = PINB & _receiveBitMask; // RX pin is 8
-
   if (!is_listining && rx_pin_val && !is_transmitting) {
     msg_stage = 0;
     i = 2;
     is_listining = true;
     TIMSK1 |= (1 << OCIE1A) | (1 << OCIE1B);
   }
-  TCNT1 = 830;
+
 }
 
 
@@ -419,9 +420,9 @@ void BeanMPX::begin() {
   TCCR1A = 0;
   TCCR1B = 0;
   TCCR1B |= (1 << CS10) | (1 << WGM12);	// prescaler 1, CTC Mode
-  OCR1B = 830;
-  OCR1A = 1660;
-  TIMSK1 = 0;    
+  OCR1B = CALLIB_HALF;//830;
+  OCR1A = CALLIB_FULL;//1660;
+  TIMSK1 = 0;    // Disabling interrupts for now
   
   // Transmit pin as outout
   DDRB |= (1<<TX);	// RX/TX pins  	
@@ -485,6 +486,6 @@ void BeanMPX::sendMsg(const uint8_t *data, uint16_t datalen) {
 
   j = 1;
 
-  TCNT1 = 830;
-  TIMSK1 |= (1 << OCIE1A) | (1 << OCIE1B);
+  TCNT1 = CALLIB_HALF;//830; // Setting new value of the timer
+  TIMSK1 |= (1 << OCIE1A) | (1 << OCIE1B); // Enabling the interrups 
 }
