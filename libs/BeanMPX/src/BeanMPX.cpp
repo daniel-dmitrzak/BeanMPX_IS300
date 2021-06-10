@@ -98,7 +98,9 @@ void BeanMPX::receive() {
   switch (msg_stage) {
   case 0:
     storeReceivedBit(rx_pin_val, true);
-
+#ifdef _LED
+	PORTC |= (1<<PC1);
+#endif 
     if (!i) {
       d &= 1;
       storeReceivedByte();
@@ -173,6 +175,9 @@ void BeanMPX::receive() {
       TIMSK1 = 0;
       msg_stage = 0;
       is_listining = false;
+#ifdef _LED
+	  PORTC &= ~(1<<PC1);
+#endif
 
 	  memcpy(msg, _receive_buffer, sizeof _receive_buffer);
 	  msg_index = 0;
@@ -227,6 +232,9 @@ void BeanMPX::receiveAcknowledge() {
 //
 void BeanMPX::transmit() {
   if (!(_tx_buffer_index < _tx_buffer_len)) {
+#ifdef _LED
+	  PORTC &= ~(1<<PC0); 
+#endif
     if (_tx_buffer_len > 1) {
       is_receive_ack = true;
       return;
@@ -415,6 +423,9 @@ void BeanMPX::begin() {
   #ifdef _DEBUG
   DDRD |= (1<<PD3) | (1<<PD4) | (1<<PD5);	// Debug Pins
   #endif
+  #ifdef _LED
+  DDRC |= (1<<PC0) | (1<<PC1); 
+  #endif
   
   // Init Timer1  
   TCCR1A = 0;
@@ -462,6 +473,9 @@ uint8_t BeanMPX::read() {
 
 
 void BeanMPX::sendMsg(const uint8_t *data, uint16_t datalen) {  
+#ifdef _LED
+  PORTC |= (1<<PC0);
+#endif
   uint8_t frame[datalen + 4];
   tx_s0 = 0;
   tx_s1 = 0;
